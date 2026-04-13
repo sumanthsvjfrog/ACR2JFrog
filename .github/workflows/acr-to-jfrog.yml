@@ -25,29 +25,22 @@ jobs:
   migrate:
     name: Migrate Images ACR → JFrog
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required for OIDC login
+      contents: read    # required for actions/checkout
 
     steps:
       # ── 1. Checkout repo (gets the script) ──────────────────────────
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ── 2. Azure Login ───────────────────────────────────────────────
+      # ── 2. Azure Login (OIDC) ────────────────────────────────────────
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-          # AZURE_CREDENTIALS secret should be a JSON object like:
-          # {
-          #   "clientId": "<app-id>",
-          #   "clientSecret": "<client-secret>",
-          #   "subscriptionId": "<subscription-id>",
-          #   "tenantId": "<tenant-id>"
-          # }
-          # Generate with:
-          # az ad sp create-for-rbac --name "gh-acr-migration" \
-          #   --role AcrPull \
-          #   --scopes /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.ContainerRegistry/registries/<acr-name> \
-          #   --sdk-auth
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # ── 3. Install Skopeo ────────────────────────────────────────────
       - name: Install Skopeo
