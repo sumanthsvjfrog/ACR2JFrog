@@ -1,0 +1,82 @@
+name: ACR to JFrog Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      jfrog_registry_host:
+        description: "JFrog Registry Host (e.g. myorg.jfrog.io)"
+        required: true
+      jfrog_username:
+        description: "JFrog Username"
+        required: true
+      acr_registry_url:
+        description: "ACR Login Server (e.g. sumacr2.azurecr.io)"
+        required: true
+      jfrog_repo:
+        description: "JFrog Target Repository name (leave empty if using repo_file)"
+        required: false
+        default: ""
+      repo_file:
+        description: "Path to repo mapping file (leave empty if using jfrog_repo)"
+        required: false
+        default: ""
+
+jobs:
+  migrate:
+    name: Migrate Images ACR → JFrog
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout repo (gets the script) ──────────────────────────
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # ── 2. Azure Login ───────────────────────────────────────────────
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          # AZURE_CREDENTIALS secret should be a JSON object like:
+          # {
+          #   "clientId": "<app-id>",
+          #   "clientSecret": "<client-secret>",
+          #   "subscriptionId": "<subscription-id>",
+          #   "tenantId": "<tenant-id>"
+          # }
+          # Generate with:
+          # az ad sp create-for-rbac --name "gh-acr-migration" \
+          #   --role AcrPull \
+          #   --scopes /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.ContainerRegistry/registries/<acr-name> \
+          #   --sdk-auth
+
+      # ── 3. Install Skopeo ────────────────────────────────────────────
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y skopeo
+
+      # ── 4. Make script executable ────────────────────────────────────
+      - name: Set Script Permissions
+        run: chmod +x scripts/acr_to_jfrog.sh
+
+      # ── 5. Run Migration Script ──────────────────────────────────────
+      - name: Run ACR to JFrog Migration
+        run: |
+          scripts/acr_to_jfrog.sh \
+            "${{ github.event.inputs.jfrog_registry_host }}" \
+            "${{ github.event.inputs.jfrog_username }}" \
+            "${{ secrets.JFROG_TOKEN }}" \
+            "${{ github.event.inputs.acr_registry_url }}" \
+            "${{ github.event.inputs.jfrog_repo }}" \
+            "${{ github.event.inputs.repo_file }}"
+
+      # ── 6. Upload Logs as Artifacts ──────────────────────────────────
+      - name: Upload Migration Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-logs-${{ github.run_id }}
+          path: |
+            acr_to_jfrog_*.log
+            summary_*.log
+          retention-days: 30
