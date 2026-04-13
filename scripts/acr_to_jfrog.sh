@@ -238,6 +238,11 @@ GetACRToken
 SkopeoLogin
 if [ "$repo_file_flag" = "no" ]; then
   ListACRRepos
+else
+  log INFO "Using provided repo file: $repo_file"
+  cp "$repo_file" acrrepos.txt
+  count=$(wc -l < acrrepos.txt | tr -d ' ')
+  log OK "Loaded $count repo mapping(s) from $repo_file"
 fi
 Action
 
